@@ -1,0 +1,11 @@
+version: '3.8'
+services:
+  shop-web:
+    deploy:
+      replicas: 1
+  shop-api:
+    deploy:
+      replicas: 1
+  order-worker:
+    deploy:
+      replicas: 1

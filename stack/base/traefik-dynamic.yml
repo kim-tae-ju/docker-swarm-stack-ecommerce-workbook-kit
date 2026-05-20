@@ -1,0 +1,6 @@
+http:
+  middlewares:
+    workbook-headers:
+      headers:
+        customResponseHeaders:
+          X-Workbook-Stack: enabled

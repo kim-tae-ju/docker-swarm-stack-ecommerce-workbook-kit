@@ -1,0 +1,4 @@
+[
+  {"customer":"kim","items":[{"sku":"SKU-1001","qty":1}]},
+  {"customer":"lee","items":[{"sku":"SKU-1002","qty":2}]}
+]

@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Troubleshooting Guide</title>
+  <link rel="stylesheet" href="../assets/styles/workbook.css" />
+</head>
+<body>
+  <h1 id="troubleshooting-guide">Troubleshooting Guide</h1>
+<h2 id="1-0n">1. 서비스가 <code>0/N</code> 상태에 머무른다</h2>
+<h3 id="_1">점검</h3>
+<pre><code class="language-bash">docker service ps &lt;service-name&gt;
+docker service logs &lt;service-name&gt;
+</code></pre>
+<h3 id="_2">원인 후보</h3>
+<ul>
+<li>이미지 pull 실패</li>
+<li>placement constraint 불일치</li>
+<li>healthcheck 실패</li>
+<li>config/secret 이름 불일치</li>
+<li>포트 충돌 또는 잘못된 환경변수</li>
+</ul>
+<h2 id="2-traefik">2. Traefik 라우팅이 되지 않는다</h2>
+<h3 id="_3">점검</h3>
+<ul>
+<li>Traefik 가 manager 에 올라왔는지 확인</li>
+<li>서비스 라벨이 <code>deploy.labels</code> 아래에 있는지 확인</li>
+<li><code>traefik.http.services.&lt;name&gt;.loadbalancer.server.port</code> 가 지정되었는지 확인</li>
+<li>서비스가 Traefik 와 같은 overlay network 에 연결되었는지 확인</li>
+</ul>
+<h2 id="3-drain">3. <code>drain</code> 후 서비스가 기대와 다르게 움직인다</h2>
+<p><code>drain</code> 은 standalone container 가 아니라 <strong>swarm service task</strong> 에만 영향을 줍니다. 서비스 task 는 active 노드로 재배치됩니다 <a href="https://docs.docker.com/engine/swarm/swarm-tutorial/drain-node/">Docker Docs</a>.</p>
+<h2 id="4-config-secret">4. Config / Secret 을 수정했는데 반영이 안 된다</h2>
+<p>Docker Config 와 Secret 은 immutable 로 다루는 편이 안전합니다. 보통 새 이름으로 생성한 뒤 서비스에서 old/new 를 교체하는 방식이 적합합니다 <a href="https://docs.docker.com/engine/swarm/configs/">Docker Configs</a> <a href="https://docs.docker.com/engine/swarm/secrets/">Docker Secrets</a>.</p>
+<h2 id="5-docker-stack-deploy-compose">5. <code>docker stack deploy</code> 가 compose 문법 문제를 낸다</h2>
+<p><code>docker stack deploy</code> 는 최신 compose spec 전체가 아니라 <strong>legacy Compose v3 계열</strong> 기준이 안전합니다 <a href="https://docs.docker.com/engine/swarm/stack-deploy/">Docker Docs</a>.</p>
+<h2 id="6">6. 업데이트 후 서비스가 비정상이다</h2>
+<h3 id="_4">대응 순서</h3>
+<ol>
+<li><code>docker service ps</code> 로 실패 task 확인</li>
+<li><code>docker service logs</code> 로 오류 확인</li>
+<li>새 이미지 태그/환경변수/config 변경점 확인</li>
+<li>즉시 <code>docker service update --rollback &lt;service&gt;</code> 수행</li>
+</ol>
+<h2 id="7-db">7. DB 가 특정 노드에만 있어야 한다</h2>
+<p>단일 DB 실습에서는 placement constraint 로 고정 배치하는 편이 학습에 유리합니다. 예를 들어 DB 전용 노드 라벨을 사용합니다.</p>
+<h2 id="8-worker">8. worker 장애가 안 보인다</h2>
+<p>B안에서는 worker 로그와 Redis 큐 길이를 함께 보는 것이 좋습니다.</p>
+<ul>
+<li>worker replica 를 0 또는 1 로 줄여보기</li>
+<li>잘못된 환경변수로 worker 재배포</li>
+<li>drain 후 다른 노드로 재스케줄링되는지 확인</li>
+</ul>
+<h2 id="9">9. 실습 후 정리</h2>
+<pre><code class="language-bash">docker stack rm ecommerce-a
+docker stack rm ecommerce-b
+docker config ls
+docker secret ls
+docker volume ls
+</code></pre>
+</body>
+</html>

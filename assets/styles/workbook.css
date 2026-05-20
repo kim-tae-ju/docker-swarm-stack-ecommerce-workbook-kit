@@ -1,0 +1,12 @@
+body{font-family:Arial,Helvetica,sans-serif;line-height:1.6;max-width:1100px;margin:40px auto;padding:0 20px;color:#1f2937;background:#f8fafc}
+h1,h2,h3{color:#0f172a}
+pre{background:#0f172a;color:#e2e8f0;padding:14px;border-radius:10px;overflow:auto}
+code{font-family:Consolas,Monaco,monospace}
+table{border-collapse:collapse;width:100%;background:#fff}
+th,td{border:1px solid #cbd5e1;padding:10px;vertical-align:top}
+th{background:#e2e8f0}
+blockquote{border-left:4px solid #3b82f6;margin:16px 0;padding:8px 16px;background:#eff6ff}
+.note{background:#ecfeff;border:1px solid #67e8f9;padding:12px;border-radius:10px}
+.warn{background:#fff7ed;border:1px solid #fdba74;padding:12px;border-radius:10px}
+img.diagram{max-width:100%;background:#fff;border:1px solid #cbd5e1;border-radius:12px;padding:10px}
+a{color:#2563eb}

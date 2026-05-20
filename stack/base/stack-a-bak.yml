@@ -1,0 +1,185 @@
+version: '3.6'
+
+configs:
+  traefik_static:
+    file: ../../configs/traefik/traefik.yml
+  traefik_dynamic:
+    file: ../../configs/traefik/dynamic.yml
+  web_banner:
+    file: ../../configs/app/web-banner-v1.json
+  api_feature_flags:
+    file: ../../configs/app/api-feature-flags-v1.json
+  mysql_cnf:
+    file: ../../configs/mysql/my.cnf
+  seed_sql:
+    file: ../../app/shop-api/data/seed.sql
+
+secrets:
+  db_password:
+    file: ../../secrets-example/db_password.txt
+  jwt_secret:
+    file: ../../secrets-example/jwt_secret.txt
+  admin_api_key:
+    file: ../../secrets-example/admin_api_key.txt
+
+networks:
+  edge:
+    driver: overlay
+    attachable: true
+  app:
+    driver: overlay
+    attachable: true
+  data:
+    driver: overlay
+    attachable: true
+
+volumes:
+  mariadb_data:
+
+services:
+  traefik:
+    image: traefik:v3.1
+    ports:
+      - target: 80
+        published: 80
+        protocol: tcp
+        mode: ingress
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    configs:
+      - source: traefik_static
+        target: /etc/traefik/traefik.yml
+      - source: traefik_dynamic
+        target: /etc/traefik/dynamic.yml
+    networks:
+      - edge
+      - app
+    deploy:
+      placement:
+        constraints:
+          - node.role == manager
+
+  shop-web:
+    image: tjghkdwp/shop-web:1.0.0
+    environment:
+      PORT: 3000
+      API_BASE_URL: /api
+      BANNER_CONFIG_PATH: /run/configs/web-banner.json
+    configs:
+      - source: web_banner
+        target: /run/configs/web-banner.json
+    networks:
+      - edge
+      - app
+    deploy:
+      replicas: 2
+      update_config:
+        parallelism: 1
+        delay: 10s
+      restart_policy:
+        condition: on-failure
+      labels:
+        - traefik.enable=true
+        - traefik.swarm.network=ecommerce-a_edge
+        - traefik.http.routers.shop-web.rule=PathPrefix(`/`)
+        - traefik.http.routers.shop-web.entrypoints=web
+        - traefik.http.services.shop-web.loadbalancer.server.port=3000
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O - http://localhost:3000/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+
+  shop-api:
+    image: tjghkdwp/shop-api:1.0.0
+    environment:
+      PORT: 3000
+#      APP_VERSION: ${API_TAG}
+      DB_HOST: mariadb
+      DB_PORT: 3306
+      DB_USER: shop
+      DB_NAME: shop
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      JWT_SECRET_PATH: /run/secrets/jwt_secret
+      FEATURE_FLAGS_PATH: /run/configs/api-feature-flags.json
+    secrets:
+      - source: db_password
+        target: db_password
+      - source: jwt_secret
+        target: jwt_secret
+      - source: admin_api_key
+        target: admin_api_key
+    configs:
+      - source: api_feature_flags
+        target: /run/configs/api-feature-flags.json
+    command: >
+      sh -c 'export DB_PASSWORD=$$(cat /run/secrets/db_password) && npm start'
+    networks:
+      - app
+      - data
+    deploy:
+      replicas: 2
+      update_config:
+        parallelism: 1
+        delay: 10s
+      restart_policy:
+        condition: on-failure
+      labels:
+        - traefik.enable=true
+        - traefik.swarm.network=ecommerce-a_app
+        - traefik.http.routers.shop-api.rule=PathPrefix(`/api`)
+        - traefik.http.routers.shop-api.entrypoints=web
+        - traefik.http.services.shop-api.loadbalancer.server.port=3000
+        - traefik.http.middlewares.api-strip.stripprefix.prefixes=/api
+        - traefik.http.routers.shop-api.middlewares=api-strip
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O - http://localhost:3000/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  mariadb:
+    image: mariadb:11
+    environment:
+      MYSQL_DATABASE: shop
+      MYSQL_USER: shop
+      MYSQL_PASSWORD_FILE: /run/secrets/db_password
+      MYSQL_ROOT_PASSWORD_FILE: /run/secrets/db_password
+    secrets:
+      - source: db_password
+        target: db_password
+    configs:
+      - source: mysql_cnf
+        target: /etc/mysql/conf.d/workbook.cnf
+      - source: seed_sql
+        target: /docker-entrypoint-initdb.d/seed.sql
+    volumes:
+      - mariadb_data:/var/lib/mysql
+    networks:
+      - data
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.labels.db == true
+    healthcheck:
+      test: ["CMD-SHELL", "mariadb-admin ping -uroot -p$$(cat /run/secrets/db_password) || exit 1"]
+      interval: 20s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    networks:
+      - data
+      - app
+    deploy:
+      replicas: 1
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+

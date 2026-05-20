@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1100" height="180" viewBox="0 0 1100 180">
+<rect width="1100" height="180" fill="#f8fafc"/>
+<g font-family="Arial" font-size="22" fill="#0f172a">
+<rect x="30" y="60" width="150" height="60" rx="10" fill="#dbeafe" stroke="#2563eb"/><text x="72" y="97">Build</text>
+<rect x="240" y="60" width="150" height="60" rx="10" fill="#dcfce7" stroke="#16a34a"/><text x="291" y="97">Push</text>
+<rect x="450" y="60" width="220" height="60" rx="10" fill="#fef3c7" stroke="#d97706"/><text x="493" y="97">Stack Deploy</text>
+<rect x="730" y="60" width="150" height="60" rx="10" fill="#fde68a" stroke="#ca8a04"/><text x="768" y="97">Verify</text>
+<rect x="940" y="60" width="130" height="60" rx="10" fill="#fecaca" stroke="#dc2626"/><text x="965" y="97">Operate</text>
+</g>
+<g stroke="#334155" stroke-width="3"><line x1="180" y1="90" x2="240" y2="90"/><line x1="390" y1="90" x2="450" y2="90"/><line x1="670" y1="90" x2="730" y2="90"/><line x1="880" y1="90" x2="940" y2="90"/></g>
+</svg>

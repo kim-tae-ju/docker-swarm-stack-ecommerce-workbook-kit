@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Operations Cheatsheet</title>
+  <link rel="stylesheet" href="../assets/styles/workbook.css" />
+</head>
+<body>
+  <h1 id="operations-cheatsheet">Operations Cheatsheet</h1>
+<h2 id="stack">Stack</h2>
+<pre><code class="language-bash">docker stack deploy -c stack/base/stack-a.yml ecommerce-a
+docker stack deploy -c stack/base/stack-b.yml ecommerce-b
+docker stack services ecommerce-a
+docker stack ps ecommerce-a
+docker stack rm ecommerce-a
+</code></pre>
+<h2 id="service">Service 조회</h2>
+<pre><code class="language-bash">docker service ls
+docker service ps ecommerce-a_shop-web
+docker service inspect ecommerce-a_shop-api --pretty
+</code></pre>
+<h2 id="scale">Scale</h2>
+<pre><code class="language-bash">docker service scale ecommerce-a_shop-web=3
+docker service scale ecommerce-a_shop-api=4
+docker service scale ecommerce-b_order-worker=1
+</code></pre>
+<h2 id="rolling-update">Rolling Update</h2>
+<pre><code class="language-bash">docker service update \
+  --image REGISTRY/shop-api:1.1.0 \
+  --update-parallelism 1 \
+  --update-delay 10s \
+  ecommerce-a_shop-api
+</code></pre>
+<h2 id="rollback">Rollback</h2>
+<pre><code class="language-bash">docker service update --rollback ecommerce-a_shop-api
+</code></pre>
+<h2 id="node">Node 제어</h2>
+<pre><code class="language-bash">docker node ls
+docker node inspect swarm-worker1 --pretty
+docker node update --availability drain swarm-worker1
+docker node update --availability active swarm-worker1
+</code></pre>
+<h2 id="placement-label">Placement label</h2>
+<pre><code class="language-bash">docker node update --label-add zone=az1 swarm-worker1
+docker node update --label-add zone=az2 swarm-worker2
+docker node update --label-add db=true swarm-worker1
+</code></pre>
+<h2 id="config-secret">Config / Secret</h2>
+<pre><code class="language-bash">docker config ls
+docker secret ls
+docker config create web-banner-v2 configs/app/web-banner-v2.json
+docker secret create jwt_secret_v2 secrets-example/jwt_secret.txt
+</code></pre>
+<h2 id="_1">로그/상태 점검</h2>
+<pre><code class="language-bash">docker service logs -f ecommerce-a_shop-api
+docker service logs -f ecommerce-b_order-worker
+curl http://MANAGER_HOST/health
+curl http://MANAGER_HOST/api/health
+</code></pre>
+<h2 id="_2">공식 참고</h2>
+<ul>
+<li>Stack deploy / remove <a href="https://docs.docker.com/engine/swarm/stack-deploy/">Docker Docs</a></li>
+<li>Service update / rollback / placement <a href="https://docs.docker.com/engine/swarm/services/">Docker Docs</a></li>
+<li>Drain node <a href="https://docs.docker.com/engine/swarm/swarm-tutorial/drain-node/">Docker Docs</a></li>
+</ul>
+</body>
+</html>

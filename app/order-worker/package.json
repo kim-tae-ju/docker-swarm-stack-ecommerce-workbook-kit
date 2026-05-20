@@ -1,0 +1,13 @@
+{
+  "name": "order-worker",
+  "version": "1.0.0",
+  "description": "Order worker for Docker Swarm workbook",
+  "main": "worker.js",
+  "scripts": {
+    "start": "node worker.js"
+  },
+  "dependencies": {
+    "mariadb": "^3.4.0",
+    "redis": "^4.6.14"
+  }
+}

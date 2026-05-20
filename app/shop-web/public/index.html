@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Swarm Store</title>
+  <style>
+    body{font-family:Arial,sans-serif;margin:0;background:#f8fafc;color:#0f172a}
+    header{background:#0f172a;color:#fff;padding:24px}
+    .banner{background:#dbeafe;border:1px solid #93c5fd;padding:12px;border-radius:10px;margin:16px 0}
+    .container{max-width:1100px;margin:0 auto;padding:20px}
+    .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px}
+    .card{background:#fff;padding:16px;border-radius:12px;box-shadow:0 1px 3px rgba(0,0,0,.1)}
+    button{background:#2563eb;color:#fff;border:0;padding:10px 14px;border-radius:8px;cursor:pointer}
+    nav a{color:#bfdbfe;margin-right:16px;text-decoration:none}
+    pre{background:#0f172a;color:#e2e8f0;padding:12px;border-radius:8px;overflow:auto}
+  </style>
+</head>
+<body>
+<header>
+  <div class="container">
+    <h1>Docker Swarm Store</h1>
+    <nav>
+      <a href="/">홈</a>
+      <a href="/products.html">상품</a>
+      <a href="/cart.html">장바구니</a>
+      <a href="/health.html">헬스</a>
+    </nav>
+  </div>
+</header>
+<div class="container">
+  <div id="banner" class="banner">설정 로딩 중...</div>
+  <h2>실습용 이커머스 프런트</h2>
+  <p>이 화면은 Docker Stack 으로 배포된 shop-web 입니다. 하단 버튼으로 API 상태를 즉시 검증할 수 있습니다.</p>
+  <div style="margin:16px 0">
+    <button onclick="loadProducts()">상품 불러오기</button>
+    <button onclick="loadHealth()">API 헬스 확인</button>
+    <button onclick="createOrder()">샘플 주문 생성</button>
+  </div>
+  <div class="grid" id="products"></div>
+  <h3>응답</h3>
+  <pre id="output">아직 요청 없음</pre>
+</div>
+<script src="/env.js"></script>
+<script src="/static/app.js"></script>
+</body>
+</html>

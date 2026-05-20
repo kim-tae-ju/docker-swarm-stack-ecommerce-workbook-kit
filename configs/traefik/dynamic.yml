@@ -1,0 +1,6 @@
+http:
+  middlewares:
+    workbook-headers:
+      headers:
+        customResponseHeaders:
+          X-Workbook: docker-swarm-stack-ecommerce

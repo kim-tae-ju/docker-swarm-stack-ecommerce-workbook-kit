@@ -1,0 +1,5 @@
+[
+  {"sku":"SKU-1001","name":"Swarm T-Shirt","price":19.9,"stock":50},
+  {"sku":"SKU-1002","name":"Traefik Mug","price":12.5,"stock":80},
+  {"sku":"SKU-1003","name":"Manager Node Sticker Pack","price":4.9,"stock":200}
+]

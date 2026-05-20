@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Workbook B</title>
+  <link rel="stylesheet" href="../assets/styles/workbook.css" />
+</head>
+<body>
+  <h1 id="workbook-b">Workbook B — 장애대응형 확장판</h1>
+<p><img alt="Architecture B" src="../assets/images/architecture-b.svg" /></p>
+<h2 id="1">1. 목표</h2>
+<p>Part B는 Part A 위에 <strong>worker, 장애 유도, 재배치, rollback, 운영 복구 절차</strong>를 얹은 확장 실습입니다.</p>
+<h3 id="_1">학습 목표</h3>
+<ul>
+<li><code>order-worker</code> 가 포함된 스택 배포</li>
+<li>주문 생성 후 queue 기반 비동기 처리 확인</li>
+<li>worker 장애 유도 및 로그 확인</li>
+<li>잘못된 업데이트 후 rollback</li>
+<li>node drain 시 worker 재스케줄링 확인</li>
+<li>운영 점검 체크리스트 수행</li>
+</ul>
+<h2 id="2">2. 핵심 구성</h2>
+<ul>
+<li>Traefik</li>
+<li>shop-web</li>
+<li>shop-api</li>
+<li>MariaDB</li>
+<li>Redis</li>
+<li>order-worker</li>
+</ul>
+<p>worker 는 Redis 의 <code>orders</code> 큐를 소비해 주문 후처리를 수행합니다.</p>
+<h2 id="3">3. 배포</h2>
+<pre><code class="language-bash">docker stack deploy -c stack/base/stack-b.yml ecommerce-b
+</code></pre>
+<p>확인:</p>
+<pre><code class="language-bash">docker stack services ecommerce-b
+docker stack ps ecommerce-b
+docker service ps ecommerce-b_order-worker
+</code></pre>
+<h2 id="4">4. 기능 검증</h2>
+<h3 id="41">4.1 주문 생성</h3>
+<pre><code class="language-bash">curl -X POST http://MANAGER_HOST/api/orders \
+  -H 'Content-Type: application/json' \
+  -d '{&quot;customer&quot;:&quot;kim&quot;,&quot;items&quot;:[{&quot;sku&quot;:&quot;SKU-1001&quot;,&quot;qty&quot;:1}]}'
+</code></pre>
+<h3 id="42">4.2 큐 상태 확인</h3>
+<pre><code class="language-bash">curl http://MANAGER_HOST/api/admin/queue
+</code></pre>
+<h3 id="43-worker">4.3 worker 로그 확인</h3>
+<pre><code class="language-bash">docker service logs -f ecommerce-b_order-worker
+</code></pre>
+<h2 id="5-1-worker-replica">5. 장애 실습 1 — worker replica 축소</h2>
+<pre><code class="language-bash">docker service scale ecommerce-b_order-worker=1
+</code></pre>
+<p>주문을 여러 건 넣고 backlog 가 쌓이는지 확인합니다.</p>
+<pre><code class="language-bash">curl http://MANAGER_HOST/api/admin/queue
+</code></pre>
+<h2 id="6-2-worker">6. 장애 실습 2 — worker 실패 유도</h2>
+<p><code>FAIL_WORKER=true</code> 같은 잘못된 환경값을 적용하거나 fault injection override 를 사용합니다.</p>
+<pre><code class="language-bash">docker stack deploy \
+  -c stack/base/stack-b.yml \
+  -c stack/overrides/stack-fault-injection.override.yml \
+  ecommerce-b
+</code></pre>
+<h3 id="_2">확인</h3>
+<pre><code class="language-bash">docker service ps ecommerce-b_order-worker
+docker service logs ecommerce-b_order-worker
+</code></pre>
+<h3 id="_3">관찰 포인트</h3>
+<ul>
+<li>task 가 restart 되는가</li>
+<li>desired state 는 유지되지만 running 이 되지 않는가</li>
+<li>로그에 명확한 오류가 남는가</li>
+</ul>
+<h2 id="7-3-rollback">7. 장애 실습 3 — Rollback</h2>
+<p>fault injection 을 제거하고 즉시 rollback 하거나 정상 stack 파일로 재배포합니다.</p>
+<pre><code class="language-bash">docker service update --rollback ecommerce-b_order-worker
+</code></pre>
+<p>또는</p>
+<pre><code class="language-bash">docker stack deploy -c stack/base/stack-b.yml ecommerce-b
+</code></pre>
+<h2 id="8-4-node-drain">8. 장애 실습 4 — node drain 과 재배치</h2>
+<p>worker 가 올라가 있는 노드를 확인한 뒤 해당 노드를 drain 합니다.</p>
+<pre><code class="language-bash">docker service ps ecommerce-b_order-worker
+docker node update --availability drain swarm-worker2
+</code></pre>
+<p>확인:</p>
+<pre><code class="language-bash">docker node inspect swarm-worker2 --pretty
+docker service ps ecommerce-b_order-worker
+</code></pre>
+<h3 id="_4">관찰 포인트</h3>
+<ul>
+<li>worker task 가 다른 active 노드로 이동하는가</li>
+<li>주문 처리가 계속 가능한가</li>
+<li>queue backlog 가 잠시 늘었다가 정상화되는가</li>
+</ul>
+<h2 id="9-5">9. 장애 실습 5 — 잘못된 이미지 업데이트</h2>
+<p>일부러 존재하지 않는 태그를 지정해봅니다.</p>
+<pre><code class="language-bash">docker service update --image REGISTRY/order-worker:broken ecommerce-b_order-worker
+</code></pre>
+<p>그 후 즉시 rollback 합니다.</p>
+<pre><code class="language-bash">docker service update --rollback ecommerce-b_order-worker
+</code></pre>
+<p>공식적으로 rolling update 와 rollback 제어는 <code>docker service update</code> 옵션으로 다룹니다 <a href="https://docs.docker.com/engine/swarm/services/">Docker Docs</a>.</p>
+<h2 id="10-6-placement">10. 장애 실습 6 — placement 와 분산 배치 확인</h2>
+<p>worker 에 zone label spread 를 적용해 보고 task 분산을 관찰합니다. preference 는 best effort 이므로 완벽한 강제는 아니며, constraints 와 다르게 배치 실패를 강제하지 않습니다 <a href="https://docs.docker.com/engine/swarm/services/">Docker Docs</a>.</p>
+<h2 id="11-config-secret">11. Config / Secret 운영 실습</h2>
+<h3 id="111-feature-flag">11.1 feature flag 교체</h3>
+<p><code>api-feature-flags-v1.json</code> 을 <code>v2</code> 로 교체하고 <code>/api/config</code> 응답 차이를 확인합니다.</p>
+<h3 id="112-jwt-secret">11.2 JWT secret 교체</h3>
+<p>새 secret 을 만들어 stack 재적용으로 반영합니다.</p>
+<h2 id="12">12. 운영 점검 체크리스트</h2>
+<h3 id="_5">배포 직후</h3>
+<ul>
+<li>[ ] Traefik 정상</li>
+<li>[ ] shop-web 응답 정상</li>
+<li>[ ] shop-api health 정상</li>
+<li>[ ] Redis 연결 정상</li>
+<li>[ ] MariaDB 연결 정상</li>
+<li>[ ] worker 로그 정상</li>
+</ul>
+<h3 id="_6">장애 대응 시</h3>
+<ul>
+<li>[ ] 어떤 서비스가 실패 중인지 <code>docker service ps</code> 로 확인</li>
+<li>[ ] 로그로 원인 파악</li>
+<li>[ ] image/env/config/secret 변경점 추적</li>
+<li>[ ] 필요 시 rollback</li>
+<li>[ ] 필요 시 node drain/active 조정</li>
+<li>[ ] 복구 후 smoke test</li>
+</ul>
+<h2 id="13">13. 정리</h2>
+<pre><code class="language-bash">docker stack rm ecommerce-b
+</code></pre>
+<h2 id="14">14. 결론</h2>
+<p>Part B의 핵심은 장애 자체가 아니라, <strong>장애를 운영 명령으로 관찰하고 통제하는 과정</strong>입니다. 실무에서는 이 순서를 반복적으로 몸에 익히는 것이 중요합니다.</p>
+</body>
+</html>

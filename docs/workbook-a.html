@@ -1,0 +1,201 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Workbook A</title>
+  <link rel="stylesheet" href="../assets/styles/workbook.css" />
+</head>
+<body>
+  <h1 id="workbook-a-docker-stack">Workbook A — Docker Stack 실무형 기본기</h1>
+<p><img alt="Architecture A" src="../assets/images/architecture-a.svg" /></p>
+<h2 id="1">1. 목표</h2>
+<p>이 실습의 핵심은 <strong>Docker Stack 으로 이커머스 서비스를 배포하고, 배포 후 운영자가 수행하는 기본 제어 루틴을 익히는 것</strong>입니다.</p>
+<h3 id="_1">학습 목표</h3>
+<ul>
+<li>manager 노드에서 <code>docker stack deploy</code> 로 스택 배포</li>
+<li>Traefik 기반 ingress 동작 확인</li>
+<li><code>shop-web</code>, <code>shop-api</code>, <code>MariaDB</code>, <code>Redis</code> 서비스 확인</li>
+<li>scale in/out 수행</li>
+<li>rolling update 수행</li>
+<li>수동 rollback 수행</li>
+<li><code>drain</code> / <code>active</code> 전환과 task 이동 확인</li>
+<li>Docker Config / Secret 교체 절차 이해</li>
+</ul>
+<h2 id="2">2. 공식 기준 요약</h2>
+<ul>
+<li><code>docker stack</code> 과 <code>docker service</code> 조작은 manager 에서 수행 <a href="https://docs.docker.com/engine/swarm/stack-deploy/">Docker Docs</a></li>
+<li><code>docker stack deploy</code> 는 legacy Compose v3 계열 형식을 기준으로 구성 <a href="https://docs.docker.com/engine/swarm/stack-deploy/">Docker Docs</a></li>
+<li>scaling, rolling update, rollback, placement 제어는 Swarm service 운영의 핵심 <a href="https://docs.docker.com/engine/swarm/services/">Docker Docs</a></li>
+<li><code>drain</code> 시 서비스 task 는 active 노드로 재배치 <a href="https://docs.docker.com/engine/swarm/swarm-tutorial/drain-node/">Docker Docs</a></li>
+<li>Traefik Swarm provider 라벨은 <code>deploy.labels</code> 에 두는 것이 중요 <a href="https://doc.traefik.io/traefik/reference/install-configuration/providers/swarm/">Traefik Docs</a></li>
+</ul>
+<h2 id="3">3. 사전 준비</h2>
+<h3 id="31">3.1 노드 확인</h3>
+<pre><code class="language-bash">docker node ls
+</code></pre>
+<p>기대 상태:</p>
+<ul>
+<li><code>swarm-manager</code> = Ready / Active / Leader or Reachable</li>
+<li><code>swarm-worker1</code> = Ready / Active</li>
+<li><code>swarm-worker2</code> = Ready / Active</li>
+</ul>
+<h3 id="32">3.2 라벨링 예시</h3>
+<pre><code class="language-bash">bash scripts/node-labeling.sh
+</code></pre>
+<p>혹은 직접:</p>
+<pre><code class="language-bash">docker node update --label-add zone=az1 swarm-worker1
+docker node update --label-add zone=az2 swarm-worker2
+docker node update --label-add db=true swarm-worker1
+</code></pre>
+<h3 id="33">3.3 이미지 빌드/푸시</h3>
+<p><code>.env.example</code> 를 참고해 레지스트리 주소를 정합니다.</p>
+<pre><code class="language-bash">bash scripts/build-images.sh
+bash scripts/push-images.sh
+</code></pre>
+<h2 id="4">4. 배포 파일 읽기</h2>
+<p>주 파일:</p>
+<ul>
+<li><code>stack/base/stack-a.yml</code></li>
+<li><code>configs/traefik/traefik.yml</code></li>
+<li><code>configs/app/web-banner-v1.json</code></li>
+<li><code>configs/app/api-feature-flags-v1.json</code></li>
+</ul>
+<p>핵심 포인트:</p>
+<ul>
+<li>Traefik 는 manager 고정 배치</li>
+<li>web/api 는 replicated</li>
+<li>MariaDB 는 단일 replica</li>
+<li>Redis 는 단일 replica</li>
+<li>web/api 는 overlay network 로 연결</li>
+<li>API 는 config 와 secret 을 읽도록 설계</li>
+</ul>
+<h2 id="5-part-a">5. Part A 배포</h2>
+<pre><code class="language-bash">docker stack deploy -c stack/base/stack-a.yml ecommerce-a
+</code></pre>
+<p>배포 확인:</p>
+<pre><code class="language-bash">docker stack services ecommerce-a
+docker stack ps ecommerce-a
+</code></pre>
+<p>세부 확인:</p>
+<pre><code class="language-bash">docker service ls
+docker service ps ecommerce-a_shop-web
+docker service ps ecommerce-a_shop-api
+</code></pre>
+<h2 id="6">6. 기능 검증</h2>
+<h3 id="61-traefik-web">6.1 Traefik / web 진입 확인</h3>
+<pre><code class="language-bash">curl http://MANAGER_HOST/
+</code></pre>
+<h3 id="62-api">6.2 API 상태 확인</h3>
+<pre><code class="language-bash">curl http://MANAGER_HOST/api/health
+curl http://MANAGER_HOST/api/ready
+curl http://MANAGER_HOST/api/products
+</code></pre>
+<h3 id="63-replica">6.3 배포된 replica 확인</h3>
+<p><code>shop-web</code> 과 <code>shop-api</code> 가 여러 노드에 분산되었는지 <code>docker service ps</code> 로 확인합니다.</p>
+<h2 id="7-1">7. 운영 실습 1 — 스케일 인/아웃</h2>
+<h3 id="71-web-scale-out">7.1 web scale out</h3>
+<pre><code class="language-bash">docker service scale ecommerce-a_shop-web=3
+</code></pre>
+<h3 id="72-api-scale-out">7.2 api scale out</h3>
+<pre><code class="language-bash">docker service scale ecommerce-a_shop-api=4
+</code></pre>
+<h3 id="73">7.3 확인</h3>
+<pre><code class="language-bash">docker service ls
+docker service ps ecommerce-a_shop-web
+docker service ps ecommerce-a_shop-api
+</code></pre>
+<h3 id="_2">체크 포인트</h3>
+<ul>
+<li>desired state 와 running state 가 일치하는가</li>
+<li>task 가 여러 worker 에 분산되는가</li>
+<li>서비스 응답이 계속 유지되는가</li>
+</ul>
+<h2 id="8-2-rolling-update">8. 운영 실습 2 — Rolling Update</h2>
+<p>새 태그 이미지를 준비한 뒤 아래처럼 업데이트합니다.</p>
+<pre><code class="language-bash">docker service update \
+  --image REGISTRY/shop-api:1.1.0 \
+  --update-parallelism 1 \
+  --update-delay 10s \
+  ecommerce-a_shop-api
+</code></pre>
+<p>확인:</p>
+<pre><code class="language-bash">docker service ps ecommerce-a_shop-api
+docker service logs -f ecommerce-a_shop-api
+</code></pre>
+<h3 id="_3">관찰 포인트</h3>
+<ul>
+<li>한 번에 1개 task 만 교체되는가</li>
+<li>서비스 중단 없이 점진 업데이트 되는가</li>
+<li>새 이미지가 정상 health 상태를 만족하는가</li>
+</ul>
+<h2 id="9-3-rollback">9. 운영 실습 3 — Rollback</h2>
+<p>의도적으로 잘못된 태그 또는 잘못된 환경값으로 업데이트한 뒤 즉시 되돌립니다.</p>
+<pre><code class="language-bash">docker service update --rollback ecommerce-a_shop-api
+</code></pre>
+<p>공식적으로 rollback 은 <code>docker service update --rollback</code> 으로 수행합니다 <a href="https://docs.docker.com/engine/swarm/services/">Docker Docs</a>.</p>
+<h2 id="10-4-node-drain-active">10. 운영 실습 4 — Node Drain / Active</h2>
+<h3 id="101-drain">10.1 drain 전 상태 확인</h3>
+<pre><code class="language-bash">docker service ps ecommerce-a_shop-web
+docker service ps ecommerce-a_shop-api
+</code></pre>
+<h3 id="102-worker1-drain">10.2 worker1 drain</h3>
+<pre><code class="language-bash">docker node update --availability drain swarm-worker1
+</code></pre>
+<h3 id="103">10.3 재배치 확인</h3>
+<pre><code class="language-bash">docker node inspect swarm-worker1 --pretty
+docker service ps ecommerce-a_shop-web
+docker service ps ecommerce-a_shop-api
+</code></pre>
+<h3 id="104">10.4 복구</h3>
+<pre><code class="language-bash">docker node update --availability active swarm-worker1
+</code></pre>
+<h3 id="_4">관찰 포인트</h3>
+<ul>
+<li>worker1 의 task 가 active 노드로 이동했는가</li>
+<li>drain 은 standalone container 에 영향이 없고 swarm task 에만 적용되는가 <a href="https://docs.docker.com/engine/swarm/swarm-tutorial/drain-node/">Docker Docs</a></li>
+</ul>
+<h2 id="11-5-placement">11. 운영 실습 5 — Placement 제약</h2>
+<p>예를 들어 DB 를 <code>db=true</code> 라벨 노드에만 두도록 설계할 수 있습니다.</p>
+<pre><code class="language-bash">docker node update --label-add db=true swarm-worker1
+</code></pre>
+<p>stack 파일의 placement constraint 를 확인하고, <code>docker stack deploy</code> 를 다시 수행해보세요.</p>
+<h3 id="_5">관찰 포인트</h3>
+<ul>
+<li>조건 불일치 시 task 가 pending 될 수 있음</li>
+<li>placement constraint 는 hard rule, placement preference 는 best effort <a href="https://docs.docker.com/engine/swarm/services/">Docker Docs</a></li>
+</ul>
+<h2 id="12-6-config">12. 운영 실습 6 — Config 갱신</h2>
+<p>현재 web 배너는 <code>web-banner-v1.json</code> 을 사용합니다. 새 config 를 만들고 스택 재적용으로 반영합니다.</p>
+<pre><code class="language-bash">docker config create web-banner-v2 configs/app/web-banner-v2.json
+</code></pre>
+<p>stack 파일에서 새 config 이름을 참조하도록 바꾼 뒤 재배포합니다.</p>
+<pre><code class="language-bash">docker stack deploy -c stack/base/stack-a.yml ecommerce-a
+</code></pre>
+<h3 id="_6">확인</h3>
+<pre><code class="language-bash">curl http://MANAGER_HOST/api/config
+</code></pre>
+<h2 id="13-7-secret">13. 운영 실습 7 — Secret 갱신</h2>
+<p>기본 secret 은 예제 값입니다. 새 값으로 재생성한 뒤 서비스가 새 secret 을 참조하게 바꿔봅니다.</p>
+<pre><code class="language-bash">docker secret create jwt_secret_v2 secrets-example/jwt_secret.txt
+</code></pre>
+<p>그 다음 stack 파일의 secret 참조를 새 이름으로 바꾸고 재배포합니다.</p>
+<h2 id="14">14. 실습 완료 체크리스트</h2>
+<ul>
+<li>[ ] stack 배포 성공</li>
+<li>[ ] web/api 상태 확인 성공</li>
+<li>[ ] scale out / scale in 수행</li>
+<li>[ ] rolling update 수행</li>
+<li>[ ] rollback 수행</li>
+<li>[ ] node drain / active 확인</li>
+<li>[ ] config 교체 수행</li>
+<li>[ ] secret 교체 수행</li>
+</ul>
+<h2 id="15">15. 정리</h2>
+<pre><code class="language-bash">docker stack rm ecommerce-a
+</code></pre>
+<p>필요하면 config/secret/volume 도 정리합니다.</p>
+<h2 id="16">16. 다음 단계</h2>
+<p>Part A를 끝냈다면 <code>docs/workbook-b.md</code> 로 넘어가 장애대응형 실습을 진행하세요.</p>
+</body>
+</html>

@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1100" height="180" viewBox="0 0 1100 180">
+<rect width="1100" height="180" fill="#f8fafc"/>
+<g font-family="Arial" font-size="22" fill="#0f172a">
+<rect x="30" y="60" width="130" height="60" rx="10" fill="#dbeafe" stroke="#2563eb"/><text x="66" y="97">Scale</text>
+<rect x="220" y="60" width="160" height="60" rx="10" fill="#dcfce7" stroke="#16a34a"/><text x="252" y="97">Update</text>
+<rect x="440" y="60" width="170" height="60" rx="10" fill="#fef3c7" stroke="#d97706"/><text x="472" y="97">Rollback</text>
+<rect x="670" y="60" width="150" height="60" rx="10" fill="#fde68a" stroke="#ca8a04"/><text x="708" y="97">Drain</text>
+<rect x="880" y="60" width="180" height="60" rx="10" fill="#fecaca" stroke="#dc2626"/><text x="919" y="97">Recover</text>
+</g>
+<g stroke="#334155" stroke-width="3"><line x1="160" y1="90" x2="220" y2="90"/><line x1="380" y1="90" x2="440" y2="90"/><line x1="610" y1="90" x2="670" y2="90"/><line x1="820" y1="90" x2="880" y2="90"/></g>
+</svg>

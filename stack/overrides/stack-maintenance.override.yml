@@ -1,0 +1,8 @@
+version: '3.8'
+configs:
+  web_banner:
+    file: ../../configs/app/web-banner-v2.json
+services:
+  shop-web:
+    environment:
+      BANNER_CONFIG_PATH: /run/configs/web-banner.json
