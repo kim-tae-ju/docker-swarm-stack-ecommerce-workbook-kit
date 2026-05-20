@@ -1,0 +1,46 @@
+name: Docker Swarm CI/CD
+
+on:
+  push:
+    branches:
+      - main
+
+env:
+  IMAGE_TAG: ${{ github.sha }}
+
+jobs:
+  build-push-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Login to Harbor
+        run: |
+          echo "${{ secrets.HARBOR_PASSWORD }}" | docker login ${{ secrets.HARBOR_HOST }} \
+            -u "${{ secrets.HARBOR_USERNAME }}" \
+            --password-stdin
+
+      - name: Build shop-web image
+        run: |
+          docker build -t ${{ secrets.HARBOR_HOST }}/ecommerce/shop-web:${IMAGE_TAG} ./shop-web
+
+      - name: Push shop-web image
+        run: |
+          docker push ${{ secrets.HARBOR_HOST }}/ecommerce/shop-web:${IMAGE_TAG}
+
+      - name: Deploy to Swarm
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SWARM_HOST }}
+          username: ${{ secrets.SWARM_USER }}
+          key: ${{ secrets.SWARM_SSH_KEY }}
+          script: |
+            docker login ${{ secrets.HARBOR_HOST }} \
+              -u "${{ secrets.HARBOR_USERNAME }}" \
+              -p "${{ secrets.HARBOR_PASSWORD }}"
+
+            docker service update \
+              --image ${{ secrets.HARBOR_HOST }}/ecommerce/shop-web:${{ github.sha }} \
+              ecommerce-b_shop-web
