@@ -7,7 +7,7 @@ on:
 
 env:
   IMAGE_TAG: ${{ github.sha }}
-  HARBOR_HOST: 192.168.56.200
+  HARBOR_HOST: 192.168.56.200:5000
   HARBOR_USERNAME: admin
   HARBOR_PASSWORD: Harbor12345
   SERVICE_NAME: ecommerce-b_shop-web
