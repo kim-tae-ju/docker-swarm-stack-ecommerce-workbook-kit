@@ -7,6 +7,11 @@ on:
 
 env:
   IMAGE_TAG: ${{ github.sha }}
+  HARBOR_HOST: 192.168.56.200
+  HARBOR_USERNAME: admin
+  HARBOR_PASSWORD: Harbor12345
+  SERVICE_NAME: ecommerce-b_shop-web
+  IMAGE_NAME: ecommerce/shop-web
 
 jobs:
   build-push-deploy:
@@ -18,29 +23,21 @@ jobs:
 
       - name: Login to Harbor
         run: |
-          echo "${{ secrets.HARBOR_PASSWORD }}" | docker login ${{ secrets.HARBOR_HOST }} \
-            -u "${{ secrets.HARBOR_USERNAME }}" \
+          echo "${HARBOR_PASSWORD}" | docker login ${HARBOR_HOST} \
+            -u "${HARBOR_USERNAME}" \
             --password-stdin
 
       - name: Build shop-web image
         run: |
-          docker build -t ${{ secrets.HARBOR_HOST }}/ecommerce/shop-web:${IMAGE_TAG} ./shop-web
+          docker build -t ${HARBOR_HOST}/${IMAGE_NAME}:${IMAGE_TAG} ./app/shop-web
 
       - name: Push shop-web image
         run: |
-          docker push ${{ secrets.HARBOR_HOST }}/ecommerce/shop-web:${IMAGE_TAG}
+          docker push ${HARBOR_HOST}/${IMAGE_NAME}:${IMAGE_TAG}
 
       - name: Deploy to Swarm
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ secrets.SWARM_HOST }}
-          username: ${{ secrets.SWARM_USER }}
-          key: ${{ secrets.SWARM_SSH_KEY }}
-          script: |
-            docker login ${{ secrets.HARBOR_HOST }} \
-              -u "${{ secrets.HARBOR_USERNAME }}" \
-              -p "${{ secrets.HARBOR_PASSWORD }}"
-
-            docker service update \
-              --image ${{ secrets.HARBOR_HOST }}/ecommerce/shop-web:${{ github.sha }} \
-              ecommerce-b_shop-web
+        run: |
+          docker service update \
+            --with-registry-auth \
+            --image ${HARBOR_HOST}/${IMAGE_NAME}:${IMAGE_TAG} \
+            ${SERVICE_NAME}
